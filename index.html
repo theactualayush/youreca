@@ -3,15 +3,15 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>FOMC Date Repricer</title>
+<title>FF Meeting Calculator</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Condensed:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <style>
-/* Layout: a terminal-style workbench. Sticky inputs bar, left rail holds the schedules and quotes, right pane holds the repriced strategy tables. */
+/* Layout: desk workbench. Sticky control bar (pricing date, calendar A vs B, paste-new-dates), tabbed work area below. */
 :root{
   --bg:#f3f5f8; --panel:#ffffff; --ink:#18212e; --muted:#5b6778; --line:#d9dee6; --soft:#eaeef4;
-  --accent:#1d4ed8; --accent-ink:#ffffff; --rich:#0f7a4a; --cheap:#b42318; --warn:#9a6700; --hl:#fff7d6;
+  --accent:#1d4ed8; --accent-ink:#ffffff; --rich:#0f7a4a; --cheap:#b42318; --warn:#9a6700; --colA:#eef2fb; --colB:#eaf6ef;
   --f-display:"IBM Plex Sans Condensed","Arial Narrow",system-ui,sans-serif;
   --f-body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
   --f-mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
@@ -19,72 +19,72 @@
 }
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
   --bg:#0e131b; --panel:#151c27; --ink:#e4e9f1; --muted:#93a0b4; --line:#273244; --soft:#1c2533;
-  --accent:#7aa2ff; --accent-ink:#0b1220; --rich:#4cc38a; --cheap:#ff7a6b; --warn:#e3b341; --hl:#2c2a17; color-scheme:dark}}
+  --accent:#7aa2ff; --accent-ink:#0b1220; --rich:#4cc38a; --cheap:#ff7a6b; --warn:#e3b341; --colA:#18223a; --colB:#16291f; color-scheme:dark}}
 :root[data-theme="dark"]{
   --bg:#0e131b; --panel:#151c27; --ink:#e4e9f1; --muted:#93a0b4; --line:#273244; --soft:#1c2533;
-  --accent:#7aa2ff; --accent-ink:#0b1220; --rich:#4cc38a; --cheap:#ff7a6b; --warn:#e3b341; --hl:#2c2a17; color-scheme:dark}
+  --accent:#7aa2ff; --accent-ink:#0b1220; --rich:#4cc38a; --cheap:#ff7a6b; --warn:#e3b341; --colA:#18223a; --colB:#16291f; color-scheme:dark}
 *{box-sizing:border-box}
 html,body{margin:0}
 body{background:var(--bg);color:var(--ink);font:14px/1.45 var(--f-body)}
 .wrap{padding-inline:16px;padding-block:0 32px;max-width:1500px;margin:0 auto}
 header.bar{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);border-bottom:1px solid var(--line);padding-block:10px}
-@media (max-width:700px){header.bar{position:static}}
-.bar-row{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:flex-end}
+@media (max-width:760px){header.bar{position:static}}
+.bar-row{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:flex-end}
 h1{font:600 20px/1.1 var(--f-display);letter-spacing:.01em;margin:0;text-wrap:balance}
 h1 small{display:block;font:400 12px var(--f-body);color:var(--muted);letter-spacing:0;margin-top:2px}
 .brand{margin-right:auto;min-width:0}
 label.f{display:flex;flex-direction:column;gap:2px;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
 input,select,textarea,button{font:inherit;color:var(--ink)}
-input[type=number],input[type=date],select{background:var(--panel);border:1px solid var(--line);border-radius:4px;padding:5px 7px;font-family:var(--f-mono);font-size:13px}
-input[type=number]{width:84px}
-textarea{width:100%;background:var(--panel);border:1px solid var(--line);border-radius:4px;padding:8px;font:12.5px/1.5 var(--f-mono);resize:vertical}
+input[type=number],input[type=date],input[type=text],select{background:var(--panel);border:1px solid var(--line);border-radius:4px;padding:5px 7px;font-family:var(--f-mono);font-size:13px}
+input[type=number]{width:90px}
+textarea{width:100%;background:var(--panel);border:1px solid var(--line);border-radius:4px;padding:8px;font:12px/1.5 var(--f-mono);resize:vertical}
 :focus-visible{outline:2px solid var(--accent);outline-offset:1px}
 button{cursor:pointer;border:1px solid var(--line);background:var(--panel);border-radius:4px;padding:5px 10px;font-size:13px}
 button:hover{border-color:var(--accent)}
 button.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:600}
-.grid{display:grid;grid-template-columns:minmax(0,400px) minmax(0,1fr);gap:18px;margin-top:16px}
-@media (max-width:980px){.grid{grid-template-columns:minmax(0,1fr)}}
+.quick{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;margin-top:10px;align-items:start}
+.quick textarea{min-height:38px;height:38px}
+@media (max-width:760px){.quick{grid-template-columns:minmax(0,1fr)}}
+.tabs{display:flex;gap:4px;flex-wrap:wrap;border-bottom:1px solid var(--line);margin:14px 0 12px}
+.tabs button{border:0;border-bottom:2px solid transparent;border-radius:0;background:transparent;padding:7px 11px;color:var(--muted);font-weight:500}
+.tabs button[aria-selected=true]{color:var(--ink);border-bottom-color:var(--accent)}
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
+.chips button{border-radius:999px;padding:3px 11px;font-size:12.5px}
+.chips button[aria-pressed=true]{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
 section.card{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:12px 14px;min-width:0}
-.rail{display:flex;flex-direction:column;gap:14px;min-width:0}
+.cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(340px,100%),1fr));gap:14px}
 h2{font:600 15px/1.2 var(--f-display);letter-spacing:.02em;margin:0 0 8px;display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}
 h2 .tag{font:500 10.5px var(--f-body);text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
-.hint{color:var(--muted);font-size:12px;margin:4px 0 8px;max-width:65ch}
+.hint{color:var(--muted);font-size:12px;margin:2px 0 8px;max-width:75ch}
+.hint code,.method code{font-family:var(--f-mono);font-size:11.5px}
 .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 .tbl-wrap{overflow-x:auto;max-width:100%}
 table{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums}
 th,td{padding:4px 8px;border-bottom:1px solid var(--soft);text-align:right;white-space:nowrap}
-th{font:500 11px var(--f-body);text-transform:uppercase;letter-spacing:.06em;color:var(--muted);position:sticky;top:0;background:var(--panel)}
+th{font:500 11px var(--f-body);text-transform:uppercase;letter-spacing:.05em;color:var(--muted);background:var(--panel)}
 td{font-family:var(--f-mono);font-size:12.5px}
 th:first-child,td:first-child{text-align:left}
-td.name{font-family:var(--f-body);font-weight:500}
-td .legs{display:block;font:11px var(--f-mono);color:var(--muted);font-weight:400}
-.sched td input{width:100%;min-width:0;border:1px solid transparent;background:transparent;padding:3px 4px;font:12.5px var(--f-mono);border-radius:3px}
-.sched td input:hover,.sched td input:focus{border-color:var(--line);background:var(--bg)}
-.sched td input[readonly]{color:var(--muted)}
-.sched td.x button{border:0;padding:0 4px;color:var(--muted);background:transparent}
-.past td{opacity:.45}
-.bad input{color:var(--cheap)!important}
-.pos{color:var(--rich)} .neg{color:var(--cheap)}
+td.name{font-family:var(--f-body);font-weight:500;text-align:left}
+td .sub{display:block;font:11px var(--f-mono);color:var(--muted);font-weight:400}
+th.a,td.a{background:var(--colA)} th.b,td.b{background:var(--colB)}
+.pos{color:var(--rich)} .neg{color:var(--cheap)} .err{color:var(--muted)}
 .pill{display:inline-block;padding:1px 7px;border-radius:999px;font:600 11px var(--f-body);letter-spacing:.04em}
 .pill.buy{background:color-mix(in srgb,var(--rich) 16%,transparent);color:var(--rich)}
 .pill.sell{background:color-mix(in srgb,var(--cheap) 16%,transparent);color:var(--cheap)}
-tr.flag td{background:var(--hl)}
-.tabs{display:flex;gap:4px;flex-wrap:wrap;border-bottom:1px solid var(--line);margin:-2px 0 10px}
-.tabs button{border:0;border-bottom:2px solid transparent;border-radius:0;background:transparent;padding:6px 10px;color:var(--muted);font-weight:500}
-.tabs button[aria-selected=true]{color:var(--ink);border-bottom-color:var(--accent)}
-.tabs .n{font:500 11px var(--f-mono);color:var(--muted);margin-left:4px}
-.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:12px}
+tr.flag td:first-child{box-shadow:inset 3px 0 0 var(--warn)}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin-bottom:12px}
 .kpi{border:1px solid var(--line);border-radius:6px;padding:8px 10px;background:var(--panel)}
-.kpi b{display:block;font:500 18px var(--f-mono)}
+.kpi b{display:block;font:500 17px var(--f-mono)}
 .kpi span{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
-.banner{border:1px dashed var(--warn);color:var(--warn);border-radius:6px;padding:6px 10px;font-size:12.5px;margin-top:10px}
-.seg{display:inline-flex;border:1px solid var(--line);border-radius:4px;overflow:hidden}
-.seg button{border:0;border-radius:0;padding:4px 9px;font-size:12px}
-.seg button[aria-pressed=true]{background:var(--accent);color:var(--accent-ink)}
-details summary{cursor:pointer;color:var(--muted);font-size:12.5px}
 .msg{font-size:12px;color:var(--muted);min-height:1em}
-.method{font-size:12.5px;color:var(--muted);max-width:75ch}
-.method code{font-family:var(--f-mono);font-size:12px}
+.msg.bad{color:var(--cheap)}
+.scen td input{width:118px;border:1px solid transparent;background:transparent;padding:2px 3px;font:12px var(--f-mono);border-radius:3px}
+.scen td input:hover,.scen td input:focus{border-color:var(--line);background:var(--bg)}
+.scen th button{border:0;background:transparent;padding:0 3px;color:var(--muted)}
+.scen th.sel{color:var(--accent)}
+.cases td input{width:110px}
+.method{font-size:12.5px;color:var(--muted);max-width:80ch}
+.badge{font:500 11px var(--f-body);padding:1px 6px;border-radius:4px;border:1px solid var(--line);color:var(--muted)}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 </style>
 </head>
@@ -92,380 +92,341 @@ details summary{cursor:pointer;color:var(--muted);font-size:12.5px}
 <header class="bar">
 <div class="wrap" style="padding-block:0">
   <div class="bar-row">
-    <div class="brand"><h1>FOMC Date Repricer<small>Fair values for ZQ, SR1 and SR3 strategies when the FOMC calendar changes</small></h1></div>
+    <div class="brand"><h1>FF Meeting Calculator<small>ZQ · SR1 · SR3 fair values from the FOMC calendar, matching the Excel model</small></h1></div>
     <label class="f">Pricing date<input type="date" id="asof"></label>
-    <label class="f">EFFR now %<input type="number" id="base" step="0.01"></label>
-    <label class="f">SOFR−EFFR bp<input type="number" id="spread" step="0.5"></label>
-    <label class="f">Mo-end turn bp<input type="number" id="meTurn" step="0.5"></label>
-    <label class="f">Qtr-end turn bp<input type="number" id="qeTurn" step="0.5"></label>
-    <label class="f">Yr-end turn bp<input type="number" id="yeTurn" step="0.5"></label>
-    <label class="f">Effective lag d<input type="number" id="lag" step="1" min="0"></label>
+    <label class="f">Calendar A (compare)<select id="selA"></select></label>
+    <label class="f">Calendar B (priced)<select id="selB"></select></label>
     <label class="f">Alert edge bp<input type="number" id="thresh" step="0.25" min="0"></label>
   </div>
-  <div class="banner" id="exampleBanner" hidden>Example inputs are loaded: the rate, meeting dates, expected moves and market prices are illustrative. Replace them with live numbers before trading. <button id="dismissBanner">Got it</button></div>
+  <div class="quick">
+    <textarea id="quickDates" spellcheck="false" placeholder="New FOMC dates announced? Paste them here (2027-01-27, Mar 16-17 2027, …) and calendar B reprices instantly"></textarea>
+    <div class="row"><button class="primary" id="quickApply">Price new dates</button><span class="msg" id="quickMsg"></span></div>
+  </div>
 </div>
 </header>
 
 <div class="wrap">
-<div class="grid">
-  <div class="rail">
-    <section class="card">
-      <h2>New meeting dates <span class="tag">schedule B · paste on release</span></h2>
-      <p class="hint">Paste the newly announced decision dates, one per line or comma-separated. Accepts <code>2027-01-27</code>, <code>1/27/2027</code>, <code>Jan 26-27, 2027</code>. For two-day meetings the last day is used.</p>
-      <textarea id="pasteB" rows="4" placeholder="Paste new FOMC dates here"></textarea>
-      <div class="row" style="margin-top:6px">
-        <button class="primary" id="applyB">Reprice with these dates</button>
-        <button id="copyAB">Copy current dates into B</button>
-        <span class="msg" id="pasteMsg"></span>
-      </div>
-      <div class="row" style="margin-top:10px">
-        <span class="hint" style="margin:0">Moves at new dates:</span>
-        <div class="seg" id="bMode">
-          <button data-m="time" title="Each new meeting delivers whatever the current calendar would have delivered by that date">Time-matched</button>
-          <button data-m="index" title="The k-th new meeting gets the k-th current meeting's move">By order</button>
-          <button data-m="manual" title="Type the expected move for each new meeting">Manual</button>
-        </div>
-      </div>
-      <div class="tbl-wrap" style="margin-top:8px"><table class="sched" id="tblB"></table></div>
-      <div class="row" style="margin-top:6px"><button id="addB">Add meeting</button></div>
-    </section>
-
-    <section class="card">
-      <h2>Current meeting dates <span class="tag">schedule A · what the market prices</span></h2>
-      <p class="hint">Expected move per meeting in bp (probability-weighted, e.g. −18.5 = 74% of a 25bp cut). Imply them from market prices below.</p>
-      <textarea id="pasteA" rows="2" placeholder="Optional: paste current dates to replace the list"></textarea>
-      <div class="row" style="margin-top:6px"><button id="applyA">Replace dates</button><span class="msg" id="pasteMsgA"></span></div>
-      <div class="tbl-wrap" style="margin-top:8px"><table class="sched" id="tblA"></table></div>
-      <div class="row" style="margin-top:6px"><button id="addA">Add meeting</button></div>
-    </section>
-
-    <section class="card">
-      <h2>Market prices <span class="tag">optional</span></h2>
-      <p class="hint">One contract per line: <code>ZQX6 96.3950</code>, <code>SR3Z6 96.42</code>, <code>SR1F27 96.51</code>. Tabs or commas work, so you can paste straight from a quote sheet.</p>
-      <textarea id="market" rows="8" spellcheck="false"></textarea>
-      <div class="row" style="margin-top:6px">
-        <button class="primary" id="calib">Imply moves from</button>
-        <select id="calibSrc"><option value="ZQ">ZQ (Fed Funds)</option><option value="SR1">SR1 (1M SOFR)</option></select>
-        <button id="sampleMkt" title="Fill with fair values under the current calendar">Fill with fair A</button>
-      </div>
-      <div class="msg" id="calibMsg"></div>
-    </section>
-
-    <section class="card">
-      <h2>Custom strategies</h2>
-      <p class="hint">One per line, optional name before a colon. Weights in front of contracts: <code>Reds: SR3Z6 -2 SR3H7 + SR3M7</code> or <code>ZQZ6 - SR1Z6</code>.</p>
-      <textarea id="custom" rows="4" spellcheck="false"></textarea>
-    </section>
-  </div>
-
-  <div style="min-width:0;display:flex;flex-direction:column;gap:14px">
-    <section class="card">
-      <div class="kpis" id="kpis"></div>
-      <div class="tabs" id="tabs" role="tablist"></div>
-      <div class="row" style="margin-bottom:8px">
-        <div class="seg" id="typeFilter">
-          <button data-t="out">Outrights</button><button data-t="spr">Spreads</button><button data-t="fly">Flies</button><button data-t="cdr">Condors</button><button data-t="cus">Custom</button>
-        </div>
-        <button id="copyTbl">Copy table</button>
-        <span class="msg" id="copyMsg"></span>
-      </div>
-      <div class="tbl-wrap" id="results"></div>
-    </section>
-    <section class="card">
-      <h2>Expected policy path <span class="tag">EFFR after each meeting</span></h2>
-      <div class="tbl-wrap" id="pathTbl"></div>
-    </section>
-    <section class="card">
-      <h2>Method</h2>
-      <div class="method">
-        <p>Each meeting changes the policy rate on the decision date plus the effective lag (normally 1 day). Daily EFFR fixings follow the Fed holiday calendar and daily SOFR fixings follow the SIFMA calendar (Good Friday included). Weekends and holidays carry the prior business day's fixing. Fixings before the pricing date are rebuilt backward from the current EFFR.</p>
-        <p><b>ZQ</b> = 100 − calendar-day average EFFR over the contract month. <b>SR1</b> = 100 − calendar-day average SOFR. <b>SR3</b> = 100 − compounded SOFR from the 3rd Wednesday of the contract month to the 3rd Wednesday three months later (Act/360, business-day compounding). SOFR = EFFR + the spread, plus the turn on the last business day of each month (the quarter-end and year-end values replace the month-end one).</p>
-        <p>Outrights, and custom baskets whose weights do not net to zero (packs), are shown as an average price. Spreads, flies and condors are Σ weight × price, shown in bp. <b>Δ</b> = fair B − fair A. <b>Edge</b> = fair B − market. A positive edge means the market is cheap, so the signal is to buy.</p>
-        <p>Implying moves solves one meeting at a time against ZQ or SR1 prices under schedule A. When a meeting falls in the last week of its month and the next month has no meeting, the next month's contract is used because it pins the post-meeting rate more cleanly.</p>
-      </div>
-    </section>
-  </div>
-</div>
+  <div class="tabs" id="tabs" role="tablist"></div>
+  <div id="view"></div>
 </div>
 
+<script src="engine.js"></script>
+<script src="seed.js"></script>
 <script>
 "use strict";
-/* ---------- dates ---------- */
-const DAY=864e5, CODES="FGHJKMNQUVXZ", MON=["jan","feb","mar","apr","may","jun","jul","aug","sep","oct","nov","dec"];
-const dn=(y,m,d)=>Math.round(Date.UTC(y,m-1,d)/DAY);
-const ymd=n=>{const t=new Date(n*DAY);return{y:t.getUTCFullYear(),m:t.getUTCMonth()+1,d:t.getUTCDate(),w:t.getUTCDay()}};
-const iso=n=>new Date(n*DAY).toISOString().slice(0,10);
-const fromIso=s=>{const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(s||"");return m?dn(+m[1],+m[2],+m[3]):null};
-const WD=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
-const nice=n=>{const t=ymd(n);return `${WD[t.w]} ${t.d} ${MON[t.m-1][0].toUpperCase()+MON[t.m-1].slice(1)} ${String(t.y).slice(2)}`};
-function nthWd(y,m,wd,k){const f=dn(y,m,1);return f+((wd-ymd(f).w+7)%7)+7*(k-1)}
-function lastWd(y,m,wd){const l=dn(y,m+1,0);return l-((ymd(l).w-wd+7)%7)}
-function easter(y){const a=y%19,b=Math.floor(y/100),c=y%100,d=Math.floor(b/4),e=b%4,f=Math.floor((b+8)/25),g=Math.floor((b-f+1)/3),h=(19*a+b-d-g+15)%30,i=Math.floor(c/4),k=c%4,l=(32+2*e+2*i-h-k)%7,m=Math.floor((a+11*h+22*l)/451),mo=Math.floor((h+l-7*m+114)/31),da=((h+l-7*m+114)%31)+1;return dn(y,mo,da)}
-const HC={};
-function hols(y,cal){ // cal: F = Fed (EFFR), S = SIFMA (SOFR)
-  const key=cal+y; if(HC[key])return HC[key];
-  const s=new Set(), add=n=>{if(n!=null)s.add(n)};
-  const obs=n=>{const w=ymd(n).w;return w===6?(cal==="F"?null:n-1):w===0?n+1:n};
-  const ny=dn(y,1,1),nw=ymd(ny).w; if(nw===0)add(ny+1);else if(nw!==6)add(ny);
-  add(nthWd(y,1,1,3));add(nthWd(y,2,1,3));add(lastWd(y,5,1));
-  if(y>=2022)add(obs(dn(y,6,19)));
-  add(obs(dn(y,7,4)));add(nthWd(y,9,1,1));add(nthWd(y,10,1,2));add(obs(dn(y,11,11)));add(nthWd(y,11,4,4));add(obs(dn(y,12,25)));
-  if(cal==="S")add(easter(y)-2);
-  return HC[key]=s;
-}
-const isBiz=(n,cal)=>{const t=ymd(n);return t.w!==0&&t.w!==6&&!hols(t.y,cal).has(n)};
+const E=FFEngine,U=E.util;
+const $=id=>document.getElementById(id);
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 
-function parseDates(text, refYear){
-  const out=[],bad=[];
-  const parts=text.split(/\n|;|(?<=\d{4})\s*,|,(?=\s*\d{4}-)/).map(s=>s.trim()).filter(Boolean);
-  let lastYear=refYear;
-  for(const p of parts){
-    let n=null, m;
-    if((m=/(\d{4})-(\d{1,2})-(\d{1,2})/.exec(p)))n=dn(+m[1],+m[2],+m[3]);
-    else if((m=/^(\d{1,2})\/(\d{1,2})(?:-(\d{1,2}))?\/(\d{2,4})$/.exec(p))){let y=+m[4];if(y<100)y+=2000;n=dn(y,+m[1],+(m[3]||m[2]))}
-    else{
-      const low=p.toLowerCase(); let mon=-1,pos=-1;
-      MON.forEach((mm,i)=>{const re=new RegExp("\\b"+mm,"g");let r;while((r=re.exec(low))){if(r.index>pos){pos=r.index;mon=i}}});
-      const yr=/\b(20\d{2})\b/.exec(p); const nums=(p.replace(/\b20\d{2}\b/,"").match(/\b\d{1,2}\b/g)||[]).map(Number);
-      if(mon>=0&&nums.length){const y=yr?+yr[1]:lastYear;n=dn(y,mon+1,nums[nums.length-1])}
-    }
-    if(n!=null&&!isNaN(n)){out.push(n);lastYear=ymd(n).y}else bad.push(p);
-  }
-  return{dates:[...new Set(out)].sort((a,b)=>a-b),bad};
+/* ---------- defaults from the workbook ---------- */
+const SEED=window.FF_SEED;
+const MKT_TABLES=[
+  ["ZQ_Out","ZQ outrights","Label, VWAP, settle. Feeds the SOFR path base, ZQ Live and Settle."],
+  ["SR1_Out","SR1 outrights","SR3–SR1 Live and Settle."],
+  ["SR3_Out","SR3 outrights","Quarterly. SR3 flys, SR3–SR1 and SR3–ZQ Live and Settle."],
+  ["SR1ZQ","SR1−ZQ spread (bp)","Monthly SOFR−EFFR basis used in the SOFR path and the cases."],
+  ["ZQ_MS","ZQ calendar spreads (bp)","Labels like Oct26-Nov26 Calendar. The implied move at each meeting comes from these."],
+  ["ZQ_1MS","ZQ 1M spreads (bp)","Oct26 = Oct26–Nov26. Meeting-neutral Live and VWAP PnL."],
+  ["SR3_3MS","SR3 3M spreads (bp)","Sep26 = Sep26–Dec26. Total Hikes for the auto Case 1 rows."]
+];
+const FAMILIES=[
+  {k:"zq",name:"ZQ structures",kind:"binom",p:"zq",list:["Nov26-Dec26","Dec26-Jan27","Jan27-Feb27","Feb27-Mar27","Mar27-Apr27","Apr27-May27","May27-Jun27-Jul27","Apr27-May27-Jul27","Jul27-Aug27","Aug27-Sep27","Sep27-Oct27","Oct27-Nov27","Nov27-Dec27"]},
+  {k:"ff",name:"FF 1M flys",kind:"binom",p:"zq",list:["Nov26-Dec26-Jan27","Dec26-Jan27-Feb27","Jan27-Feb27-Mar27","Feb27-Mar27-Apr27","Mar27-Apr27-May27","Apr27-May27-Jun27","May27-Jun27-Jul27","Jun27-Jul27-Aug27","Jul27-Aug27-Sep27","Aug27-Sep27-Oct27"]},
+  {k:"sr3f",name:"SR3 flys",kind:"binom",p:"sr3",settle:true,list:["Dec26-Mar27-Jun27","Mar27-Jun27-Sep27","Jun27-Sep27-Dec27","Sep27-Dec27-Mar28","Dec27-Mar28-Jun28","Mar28-Jun28-Sep28"]},
+  {k:"s31",name:"SR3–SR1",kind:"flyX",a:"sr3",b:"sr1",settle:true,list:["Jun26-Jul26-Aug26","Sep26-Oct26-Nov26","Dec26-Jan27-Feb27","Mar27-Apr27-May27","Jun27-Jul27-Aug27"]},
+  {k:"s3z",name:"SR3–ZQ",kind:"flyX",a:"sr3",b:"zq",list:["Jun26-Jul26-Aug26","Sep26-Oct26-Nov26","Dec26-Jan27-Feb27","Mar27-Apr27-May27"]},
+  {k:"s4",name:"SR3–ZQ 4-leg",kind:"four",list:["Sep26-Dec26-Oct26-Jan27","Sep26-Dec26-Nov26-Feb27","Dec26-Mar27-Jan27-Apr27","Dec26-Mar27-Feb27-May27","Mar27-Jun27-Apr27-Jul27","Mar27-Jun27-May27-Aug27","Jun27-Sep27-Jul27-Oct27","Jun27-Sep27-Aug27-Nov27","Sep27-Dec27-Oct27-Jan28","Sep27-Dec27-Nov27-Feb28"]},
+  {k:"mn",name:"Meeting neutrals",kind:"mn",list:null}
+];
+const fmtNum=v=>v==null?"":String(+(+v).toFixed(10));
+function tableText(rows){return rows.map(r=>[r.label,r.vwap==null?"":r.vwap==="NaN"?"NaN":fmtNum(r.vwap),r.settle==null?"":fmtNum(r.settle)].join("\t")).join("\n")}
+function defaults(){
+  return{
+    asof:"", // empty = today's date, like TODAY() in the workbook
+    thresh:0.5, pnlMult:41.67, vwapMult:40.96,
+    confirmed:SEED.confirmed.join("\n"),
+    scen:JSON.parse(JSON.stringify(SEED.scenarios)), order:Object.keys(SEED.scenarios), selB:SEED.selected, selA:SEED.selected,
+    cases:JSON.parse(JSON.stringify(SEED.cases)),
+    mkt:Object.fromEntries(MKT_TABLES.map(([k])=>[k,tableText(SEED.mkt[k]||[])])),
+    sofr:SEED.sofr.map(r=>r.join("\t")).join("\n"), effr:SEED.effr.map(r=>r.join("\t")).join("\n"),
+    holidays:SEED.holidays.join("\n"),
+    lists:Object.fromEntries(FAMILIES.filter(f=>f.list).map(f=>[f.k,f.list.join("\n")])),
+    tab:"strat", fam:"zq", matrixFam:"zq"
+  };
 }
-
-/* ---------- state ---------- */
-const KEY="fomc-repricer-v1";
-const today=(()=>{const t=new Date();return dn(t.getFullYear(),t.getMonth()+1,t.getDate())})();
-const EX_A=[["2026-10-28",-20],["2026-12-09",-10],["2027-01-27",-8],["2027-03-17",-5],["2027-04-28",-4],["2027-06-09",-3],["2027-07-28",-2],["2027-09-22",-1],["2027-11-03",0],["2027-12-15",0]];
-const EX_B=["2026-11-04","2026-12-16","2027-02-03","2027-03-24","2027-05-05","2027-06-16","2027-08-04","2027-09-29","2027-11-10","2027-12-15"];
-function defaults(){return{asof:iso(today),base:3.63,spread:2,meTurn:0,qeTurn:3,yeTurn:5,lag:1,thresh:0.5,
-  A:EX_A.map(([d,m])=>({d,m})),B:EX_B.map(d=>({d,m:0})),bMode:"time",market:"",custom:"Whites pack: SR3Z6 + SR3H7 + SR3M7 + SR3U7\nFF/SOFR Dec: ZQZ6 - SR1Z6",
-  tab:"movers",types:{out:true,spr:true,fly:true,cdr:false,cus:true},example:true,seeded:false}}
+const KEY="ff-meeting-calc-v2";
 let S;
 try{S=Object.assign(defaults(),JSON.parse(localStorage.getItem(KEY)||"null")||{})}catch(e){S=defaults()}
-const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}};
+let saveT=0;const save=()=>{clearTimeout(saveT);saveT=setTimeout(()=>{try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}},400)};
 
-/* ---------- engine ---------- */
-function events(list,lag){return list.map(r=>({eff:fromIso(r.d)==null?null:fromIso(r.d)+lag,move:+r.m||0})).filter(e=>e.eff!=null).sort((a,b)=>a.eff-b.eff)}
-function policyFn(evs,base,asof){return x=>{let r=base;for(const e of evs){if(e.eff>asof&&e.eff<=x)r+=e.move/100;else if(e.eff<=asof&&e.eff>x)r-=e.move/100}return r}}
-function turnAt(x){let y=x+1;while(!isBiz(y,"S"))y++;const a=ymd(x);if(ymd(y).m===a.m)return 0;return a.m===12?S.yeTurn:(a.m%3===0?S.qeTurn:S.meTurn)}
-function buildPath(evs,p){
-  const asof=fromIso(p.asof),D0=asof-140,N=365*4+140;
-  const pol=policyFn(evs,+p.base,asof),effr=new Float64Array(N),sofr=new Float64Array(N),lbF=new Int32Array(N),lbS=new Int32Array(N);
-  let lf=null,ls=null,lfd=D0,lsd=D0;
-  for(let i=0;i<N;i++){const x=D0+i;
-    if(isBiz(x,"F")){lf=pol(x);lfd=x} effr[i]=lf??pol(x); lbF[i]=lfd;
-    if(isBiz(x,"S")){ls=pol(x)+(+p.spread+turnAt(x))/100;lsd=x} sofr[i]=ls??pol(x)+(+p.spread)/100; lbS[i]=lsd;}
-  return{D0,N,effr,sofr,lbF,lbS,pol};
+/* ---------- parsing ---------- */
+const MONS=["jan","feb","mar","apr","may","jun","jul","aug","sep","oct","nov","dec"];
+function parseDateLoose(p,refYear){
+  const v=U.fromText(p); if(v!=null)return v;
+  const low=p.toLowerCase();let mon=-1,pos=-1;
+  MONS.forEach((mm,i)=>{const re=new RegExp("\\b"+mm,"g");let r;while((r=re.exec(low))){if(r.index>pos){pos=r.index;mon=i}}});
+  const yr=/\b(20\d{2})\b/.exec(p);const nums=(p.replace(/\b20\d{2}\b/,"").match(/\b\d{1,2}\b/g)||[]).map(Number);
+  if(mon>=0&&nums.length)return U.ser(yr?+yr[1]:refYear,mon+1,nums[nums.length-1]);
+  return null;
 }
-function contracts(asof){
-  const a=ymd(asof),L=[];
-  for(let k=0;k<18;k++){const y=a.y+Math.floor((a.m-1+k)/12),m=(a.m-1+k)%12+1,c=CODES[m-1]+(y%10);
-    L.push({sym:"ZQ"+c,prod:"ZQ",s:dn(y,m,1),e:dn(y,m+1,1),y,m});
-    L.push({sym:"SR1"+c,prod:"SR1",s:dn(y,m,1),e:dn(y,m+1,1),y,m});}
-  let n=0;for(let k=-3;n<12;k++){const y=a.y+Math.floor((a.m-1+k)/12),m=(a.m-1+k)%12+1;if(m%3)continue;
-    const y2=y+Math.floor((m+2)/12),m2=(m+2)%12+1,s=nthWd(y,m,3,3),e=nthWd(y2,m2,3,3);
-    if(e<=asof)continue;L.push({sym:"SR3"+CODES[m-1]+(y%10),prod:"SR3",s,e,y,m});n++}
-  return L;
+function parseDateList(text,refYear){
+  const out=[],bad=[];let y=refYear;
+  text.split(/\n|;|(?<=\d{4})\s*,|,(?=\s*\d{4}-)/).map(s=>s.trim()).filter(Boolean).forEach(p=>{const d=parseDateLoose(p,y);if(d!=null&&!isNaN(d)){out.push(d);y=U.parts(d).y}else bad.push(p)});
+  return{dates:[...new Set(out)].sort((a,b)=>a-b),bad};
 }
-function rateOf(c,P){
-  const i0=c.s-P.D0,i1=c.e-P.D0;
-  if(c.prod!=="SR3"){const a=c.prod==="ZQ"?P.effr:P.sofr;let s=0;for(let i=i0;i<i1;i++)s+=a[i];return s/(i1-i0)}
-  let prod=1,i=i0;
-  while(i<i1){let j=i+1;while(j<i1&&!isBiz(P.D0+j,"S"))j++;prod*=1+P.sofr[i]/100*(j-i)/360;i=j}
-  return (prod-1)*360/(i1-i0)*100;
-}
-function priceAll(C,P){const o={};for(const c of C)o[c.sym]=100-rateOf(c,P);return o}
-
-/* schedule B moves */
-function bMoves(p){
-  const asof=fromIso(p.asof),lag=+p.lag;
-  if(p.bMode==="manual")return p.B.map(r=>+r.m||0);
-  if(p.bMode==="index"){const fa=p.A.filter(r=>fromIso(r.d)!=null&&fromIso(r.d)+lag>asof).sort((a,b)=>a.d<b.d?-1:1);let k=0;
-    return p.B.map(r=>{const d=fromIso(r.d);if(d==null||d+lag<=asof)return 0;const v=fa[k]?+fa[k].m||0:0;k++;return v})}
-  const polA=policyFn(events(p.A,lag),+p.base,asof);let prev=+p.base;
-  const order=p.B.map((r,i)=>({i,d:fromIso(r.d)})).filter(o=>o.d!=null).sort((a,b)=>a.d-b.d),res=p.B.map(()=>0);
-  for(const o of order){if(o.d+lag<=asof)continue;const t=polA(o.d+lag);res[o.i]=Math.round((t-prev)*1e4)/100;prev=t}
-  return res;
-}
-function evsB(p){
-  const asof=fromIso(p.asof),lag=+p.lag,mv=bMoves(p);
-  const past=events(p.A,lag).filter(e=>e.eff<=asof);
-  const fut=p.B.map((r,i)=>({eff:fromIso(r.d)==null?null:fromIso(r.d)+lag,move:mv[i]})).filter(e=>e.eff!=null&&e.eff>asof);
-  return{evs:past.concat(fut).sort((a,b)=>a.eff-b.eff),mv};
-}
-
-/* strategies */
-function strategies(C,customText){
-  const out=[];
-  for(const prod of ["ZQ","SR1","SR3"]){const c=C.filter(x=>x.prod===prod);
-    c.forEach(x=>out.push({name:x.sym,prod,t:"out",legs:[[x.sym,1]]}));
-    const sh=s=>s.slice(prod.length);
-    for(let i=0;i+1<c.length;i++)out.push({name:`${prod} ${sh(c[i].sym)}–${sh(c[i+1].sym)}`,prod,t:"spr",legs:[[c[i].sym,1],[c[i+1].sym,-1]]});
-    for(let i=0;i+2<c.length;i++)out.push({name:`${prod} ${sh(c[i].sym)}/${sh(c[i+1].sym)}/${sh(c[i+2].sym)} fly`,prod,t:"fly",legs:[[c[i].sym,1],[c[i+1].sym,-2],[c[i+2].sym,1]]});
-    for(let i=0;i+3<c.length;i++)out.push({name:`${prod} ${sh(c[i].sym)}–${sh(c[i+3].sym)} condor`,prod,t:"cdr",legs:[[c[i].sym,1],[c[i+1].sym,-1],[c[i+2].sym,-1],[c[i+3].sym,1]]});
+function splitRow(l){return l.includes("\t")?l.split("\t"):l.includes(",")?l.split(","):l.trim().split(/\s{2,}|\s(?=[-\d.]|NaN)/)}
+const memo=new Map();
+function parseTable(text){
+  if(memo.has(text))return memo.get(text);
+  const lines=text.split(/\r?\n/).filter(l=>l.trim());let hdr=null;const rows=[];
+  const h0=lines.length?splitRow(lines[0]).map(s=>s.trim().toLowerCase()):[];
+  if(h0.some(h=>/vwap|bidprice|askprice|settle/.test(h))){hdr=h0;lines.shift()}
+  const idx=n=>hdr?hdr.findIndex(h=>h.replace(/[^a-z]/g,"")===n):-1;
+  const iV=hdr?hdr.findIndex(h=>h.includes("vwap")):1,iS=hdr?hdr.findIndex(h=>h.startsWith("settle")):2;
+  const iB=idx("bidprice"),iA=idx("askprice"),iBq=idx("bidquantity"),iAq=idx("askquantity"),iIB=idx("impliedbidquantity"),iIA=idx("impliedaskquantity");
+  const nz=v=>{const n=parseFloat(v);return isNaN(n)?0:n};
+  for(const l of lines){
+    const c=splitRow(l).map(s=>s.trim());if(!c[0])continue;
+    let v=iV>=0?c[iV]:"";
+    if((v===undefined||v===""||isNaN(+v))&&iB>=0&&iA>=0&&c[iB]&&c[iA]&&!isNaN(+c[iB])&&!isNaN(+c[iA])){
+      const bq=nz(c[iBq])+nz(c[iIB]),aq=nz(c[iAq])+nz(c[iIA]);
+      v=bq+aq>0?(+c[iB]*aq+bq*+c[iA])/(bq+aq):(+c[iB]+ +c[iA])/2;
+    }
+    rows.push({label:c[0].replace(/\s+/g," "),vwap:v===undefined?"":v,settle:iS>=0&&c[iS]!==undefined?c[iS]:""});
   }
-  const known=new Set(C.map(c=>c.sym)),errs=[];
-  (customText||"").split("\n").map(s=>s.trim()).filter(Boolean).forEach((line,k)=>{
-    let name="Custom "+(k+1),body=line;const ci=line.indexOf(":");if(ci>=0){name=line.slice(0,ci).trim()||name;body=line.slice(ci+1)}
-    const legs=[],re=/([+-]?)\s*(\d*\.?\d*)\s*\*?\s*((?:ZQ|SR1|SR3)[FGHJKMNQUVXZ]\d{1,2})/gi;let m,ok=true;
-    while((m=re.exec(body))){const sym=normSym(m[3]);const w=(m[1]==="-"?-1:1)*(m[2]?+m[2]:1);if(!known.has(sym))ok=false;legs.push([sym,w])}
-    if(!legs.length||!ok){errs.push(name);return}
-    const net=legs.reduce((a,l)=>a+l[1],0);
-    out.push({name,prod:"CUS",t:"cus",legs,custom:true,net:Math.abs(net)>1e-9?net:0});
-  });
-  return{list:out,errs};
+  memo.set(text,rows);return rows;
 }
-function normSym(s){const m=/^(ZQ|SR1|SR3)([FGHJKMNQUVXZ])(\d{1,2})$/i.exec(s.trim());return m?m[1].toUpperCase()+m[2].toUpperCase()+(+m[3]%10):s.toUpperCase()}
-function parseMarket(t){const o={};(t||"").split(/\n/).forEach(l=>{const m=/((?:ZQ|SR1|SR3)[FGHJKMNQUVXZ]\d{1,2})[\s,;:=\t]+(-?\d+(?:\.\d+)?)/i.exec(l);if(m)o[normSym(m[1])]=+m[2]});return o}
-// outrights and net-long/short custom baskets (packs) are shown as an average price; zero-net strategies in bp
-const isPx=st=>st.t==="out"||!!st.net;
-const val=(st,px)=>{let v=0;for(const[s,w]of st.legs){if(px[s]==null)return null;v+=w*px[s]}return st.t==="out"?v:st.net?v/st.net:v*100};
-
-/* ---------- calibration ---------- */
-function calibrate(src){
-  const asof=fromIso(S.asof),lag=+S.lag,mkt=parseMarket(S.market),C=contracts(asof).filter(c=>c.prod===src);
-  const rows=S.A.map((r,i)=>({i,d:fromIso(r.d)})).filter(o=>o.d!=null&&o.d+lag>asof).sort((a,b)=>a.d-b.d);
-  const work=S.A.map(r=>({...r}));rows.forEach(o=>work[o.i].m=0);
-  const used=[],skipped=[];
-  rows.forEach((o,k)=>{
-    const eff=o.d+lag,t=ymd(eff),own=C.find(c=>c.y===t.y&&c.m===t.m),next=own&&C[C.indexOf(own)+1];
-    const laterInNext=next&&rows.slice(k+1).some(q=>q.d+lag>=next.s&&q.d+lag<next.e);
-    let c=own;
-    if(own&&(own.e-eff)<8&&next&&mkt[next.sym]!=null&&!laterInNext)c=next;
-    if(!c||mkt[c.sym]==null)c=(next&&mkt[next.sym]!=null&&!laterInNext)?next:null;
-    if(!c){skipped.push(S.A[o.i].d);return}
-    const P=buildPath(events(work,lag),S),model=rateOf(c,P),lb=src==="ZQ"?P.lbF:P.lbS;
-    let hit=0;for(let x=c.s;x<c.e;x++)if(lb[x-P.D0]>=eff)hit++;
-    const sens=hit/(c.e-c.s);
-    if(sens<=0.02){skipped.push(S.A[o.i].d);return}
-    work[o.i].m=Math.round(((100-mkt[c.sym])-model)*100/sens*10)/10;used.push(c.sym);
-  });
-  S.A=work;
-  return{used,skipped};
+function parseFix(text){
+  const k="fx:"+text;if(memo.has(k))return memo.get(k);
+  const out=[];text.split(/\r?\n/).forEach(l=>{const c=l.trim().split(/[\t,;]+|\s+(?=-?\d+(?:\.\d+)?$)/);if(c.length<2)return;const d=parseDateLoose(c[0],2026);const v=parseFloat(c[c.length-1]);if(d!=null&&!isNaN(v))out.push([d,v])});
+  memo.set(k,out);return out;
 }
 
-/* ---------- render ---------- */
-const $=id=>document.getElementById(id);
-const fx=(v,d)=>v==null||isNaN(v)?"":v.toFixed(d);
-const sgn=(v,d)=>v==null||isNaN(v)?"":(v>0?"+":"")+v.toFixed(d);
-const cls=v=>v==null||Math.abs(v)<1e-9?"":(v>0?"pos":"neg");
-let last={};
-
-function schedTable(id,list,editableMove,moves,which){
-  const asof=fromIso(S.asof),lag=+S.lag;
-  let h=`<thead><tr><th>Decision date</th><th>Effective</th><th>Move bp</th><th></th></tr></thead><tbody>`;
-  list.forEach((r,i)=>{const d=fromIso(r.d),past=d!=null&&d+lag<=asof;
-    h+=`<tr class="${past?"past":""}${d==null&&r.d?" bad":""}"><td><input type="date" data-w="${which}" data-i="${i}" data-k="d" value="${r.d||""}" aria-label="Decision date"></td>
-    <td>${d!=null?nice(d+lag):""}</td>
-    <td><input type="number" step="0.5" data-w="${which}" data-i="${i}" data-k="m" value="${editableMove?(r.m??0):fx(moves[i],2)}" ${editableMove?"":"readonly"} aria-label="Expected move in bp"></td>
-    <td class="x"><button data-del="${which}" data-i="${i}" aria-label="Remove meeting">×</button></td></tr>`});
-  $(id).innerHTML=h+"</tbody>";
+/* ---------- engine inputs ---------- */
+const todaySerReal=()=>{const t=new Date();return U.ser(t.getFullYear(),t.getMonth()+1,t.getDate())};
+function todaySer(){if(S.asof){const v=U.fromText(S.asof);if(v!=null)return v}return todaySerReal()}
+const cv=v=>v==="auto"?"auto":(v===""||v==null||isNaN(+v)?undefined:+v);
+function inputs(){
+  return{today:todaySer(),confirmed:parseDateList(S.confirmed,2024).dates,
+    mkt:Object.fromEntries(MKT_TABLES.map(([k])=>[k,parseTable(S.mkt[k]||"")])),
+    sofr:parseFix(S.sofr),effr:parseFix(S.effr),holidays:parseDateList(S.holidays,2023).dates,
+    cases:{rows:S.cases.rows.map(r=>({c1:cv(r.c1),c2:cv(r.c2)})),extra:S.cases.extra.map(r=>({date:U.fromText(r.date||""),c1:cv(r.c1),c2:cv(r.c2)})),cutoff:U.fromText(S.cases.cutoff||"")||0}};
+}
+const scenDates=name=>(S.scen[name]||[]).filter(Boolean).map(d=>parseDateLoose(String(d),2027)).filter(d=>d!=null);
+const cache=new Map();let inpKey="",INP=null,lastMs=0;
+function result(name){
+  if(!cache.has(name)){const t=performance.now();cache.set(name,E.run(INP,scenDates(name)));lastMs=performance.now()-t}
+  return cache.get(name);
 }
 
-function compute(){
-  const asof=fromIso(S.asof);if(asof==null)return null;
-  const C=contracts(asof);
-  const PA=buildPath(events(S.A,+S.lag),S);
-  const b=evsB(S),PB=buildPath(b.evs,S);
-  const fa=priceAll(C,PA),fb=priceAll(C,PB),mk=parseMarket(S.market);
-  const{list,errs}=strategies(C,S.custom);
-  const rows=list.map(st=>{const A=val(st,fa),B=val(st,fb),M=val(st,mk);
-    const scale=isPx(st)?100:1;
-    return{...st,A,B,M,d:(B-A)*scale,edge:M==null?null:(B-M)*scale}});
-  return{C,PA,PB,rows,mv:b.mv,errs,fa,mk};
+/* ---------- strategy values ---------- */
+const getter=(R,p,w)=>w==="live"?R.src[p+"Live"]:w==="settle"?R.src[p+"Settle"]:w==="fair"?R.src[p+"Fair"]:R.src[p+"Case"](w==="c1"?0:1);
+function famItems(f,RB){
+  if(f.kind!=="mn")return(S.lists[f.k]||"").split(/\n/).map(s=>s.trim()).filter(Boolean).map(l=>({label:l}));
+  return RB.mn.map(m=>({label:m.legs.join("-"),legs:m.legs,ratios:m.ratios,meeting:m.meeting}));
 }
+function value(f,it,R,w){
+  try{
+    if(f.kind==="binom")return E.binom(it.label,getter(R,f.p,w));
+    if(f.kind==="flyX")return E.flyX(it.label,getter(R,f.a,w),getter(R,f.b,w));
+    if(f.kind==="four")return E.four(it.label,getter(R,"sr3",w),getter(R,"zq",w));
+    if(f.kind==="mn"){
+      if(w==="live"){ // Graphs F25: 1M spreads weighted [a, a+b]
+        const sp=[it.ratios[0],it.ratios[0]+it.ratios[1]];let v=sp[0]*R.src.zq1ms(it.legs[0])+sp[1]*R.src.zq1ms(it.legs[1]);
+        if(isNaN(v))v=100*E.ratioSum(it.legs,it.ratios,R.src.zqLive);return v;}
+      return 100*E.ratioSum(it.legs,it.ratios,getter(R,"zq",w));
+    }
+  }catch(e){return NaN}
+  return NaN;
+}
+const hasSettle=f=>f.settle||f.kind==="mn"||(f.kind==="binom"&&f.p==="zq");
 
+/* ---------- formatting ---------- */
+const bad=v=>v==null||typeof v!=="number"||!isFinite(v);
+const z=v=>Math.abs(v)<5e-7?0:v;
+const fx=(v,d)=>bad(v)?'<span class="err">—</span>':z(v).toFixed(d);
+const sg=(v,d)=>{if(bad(v))return'<span class="err">—</span>';const t=z(v).toFixed(d);return(+t>0?"+":"")+(+t===0?(0).toFixed(d):t)};
+const cl=v=>bad(v)||Math.abs(v)<5e-4?"":v>0?"pos":"neg";
+const dname=d=>{const p=U.parts(d);return `${["Sun","Mon","Tue","Wed","Thu","Fri","Sat"][p.w]} ${U.isoTime(d)}`};
+const cellsOut=r=>r.map(v=>typeof v==="number"?(isFinite(v)?v.toFixed(5):""):v);
+
+/* ---------- views ---------- */
+const TABS=[["strat","Strategies"],["out","Outrights"],["matrix","Scenario matrix"],["meet","Meetings & cases"],["mkt","Market data"],["set","Structures & settings"],["about","Method"]];
+let lastCopy=null;
 function render(){
-  for(const k of ["asof","base","spread","meTurn","qeTurn","yeTurn","lag","thresh"])if(document.activeElement!==$(k))$(k).value=S[k];
-  $("exampleBanner").hidden=!S.example;
-  document.querySelectorAll("#bMode button").forEach(b=>b.setAttribute("aria-pressed",b.dataset.m===S.bMode));
-  document.querySelectorAll("#typeFilter button").forEach(b=>b.setAttribute("aria-pressed",!!S.types[b.dataset.t]));
-  const R=compute();if(!R)return;last=R;
-  if(!document.activeElement||!document.activeElement.closest(".sched")){
-    schedTable("tblA",S.A,true,null,"A");
-    schedTable("tblB",S.B,S.bMode==="manual",R.mv,"B");
-  }else{ // keep focus: only refresh computed B moves
-    if(S.bMode!=="manual")document.querySelectorAll('#tblB input[data-k="m"]').forEach(inp=>{inp.value=fx(R.mv[+inp.dataset.i],2)});
-  }
-  const th=+S.thresh, rows=R.rows;
-  const flagged=rows.filter(r=>r.edge!=null&&Math.abs(r.edge)>=th);
-  const movers=rows.filter(r=>r.t!=="out"||true).slice().sort((a,b)=>Math.abs(b.d)-Math.abs(a.d));
-  const maxMove=movers[0];
-  const cnt=p=>rows.filter(r=>r.prod===p&&S.types[r.t]).length;
-  const tabs=[["movers","Biggest changes",null],["opps","Opportunities",flagged.filter(r=>S.types[r.t]).length],["ZQ","ZQ",cnt("ZQ")],["SR1","SR1",cnt("SR1")],["SR3","SR3",cnt("SR3")],["CUS","Custom",cnt("CUS")]];
-  $("tabs").innerHTML=tabs.map(([k,l,n])=>`<button role="tab" data-tab="${k}" aria-selected="${S.tab===k}">${l}${n!=null?`<span class="n">${n}</span>`:""}</button>`).join("");
-  const nMk=Object.keys(R.mk).length, pa=R.PA.pol, pb=R.PB.pol, end=fromIso(S.asof)+365;
-  $("kpis").innerHTML=[
-    [`${sgn(maxMove?maxMove.d:0,2)}`,`Largest Δ · ${maxMove?maxMove.name:""}`],
-    [`${flagged.length}`,`Strategies with edge ≥ ${th}bp`],
-    [`${fx(pa(end),3)} → ${fx(pb(end),3)}`,`EFFR in 12m, A → B`],
-    [`${nMk}`,`Market prices loaded`]
-  ].map(([b,s])=>`<div class="kpi"><b>${b}</b><span>${s}</span></div>`).join("");
-
-  let view;
-  if(S.tab==="movers")view=movers.filter(r=>S.types[r.t]&&Math.abs(r.d)>=0.005).slice(0,40);
-  else if(S.tab==="opps")view=flagged.filter(r=>S.types[r.t]).sort((a,b)=>Math.abs(b.edge)-Math.abs(a.edge));
-  else view=rows.filter(r=>r.prod===S.tab&&S.types[r.t]);
-  last.view=view;
-  if(!view.length){$("results").innerHTML=`<p class="hint">${S.tab==="opps"?(nMk?"No strategy has an edge above the alert level.":"Paste market prices on the left to see opportunities."):S.tab==="CUS"?(R.errs.length?"Could not read: "+R.errs.join(", ")+". Check contract symbols are within the listed months.":"Add custom strategies on the left."):"Nothing to show for the selected strategy types."}</p>`;}
-  else{
-    let h=`<table><thead><tr><th>Strategy</th><th>Fair A</th><th>Fair B</th><th>Δ bp</th><th>Market</th><th>Edge bp</th><th>Signal</th></tr></thead><tbody>`;
-    for(const r of view){const dp=isPx(r)?4:2,f=r.edge!=null&&Math.abs(r.edge)>=th;
-      const legs=r.t==="out"?"":r.legs.map(([s,w])=>(w>0?"+":"−")+(Math.abs(w)!==1?Math.abs(w):"")+s).join(" ");
-      h+=`<tr class="${f?"flag":""}"><td class="name">${r.name}${legs?`<span class="legs">${legs}</span>`:""}</td><td>${fx(r.A,dp)}</td><td>${fx(r.B,dp)}</td><td class="${cls(r.d)}">${sgn(r.d,2)}</td><td>${fx(r.M,dp)}</td><td class="${cls(r.edge)}">${sgn(r.edge,2)}</td><td>${f?(r.edge>0?'<span class="pill buy">BUY</span>':'<span class="pill sell">SELL</span>'):""}</td></tr>`}
-    $("results").innerHTML=h+"</tbody></table>";
-  }
-  // policy path
-  const asof=fromIso(S.asof),lag=+S.lag;
-  const pts=[...new Set(events(S.A,lag).concat(R.PB?evsB(S).evs:[]).map(e=>e.eff).filter(x=>x>asof))].sort((a,b)=>a-b);
-  let h=`<table><thead><tr><th>Effective</th><th>Meeting</th><th>EFFR A %</th><th>EFFR B %</th><th>B − A bp</th></tr></thead><tbody>`;
-  const aSet=new Set(events(S.A,lag).map(e=>e.eff)),bSet=new Set(evsB(S).evs.map(e=>e.eff));
-  for(const x of pts){const a=pa(x),b=pb(x);h+=`<tr><td>${nice(x)}</td><td style="font-family:var(--f-body)">${aSet.has(x)&&bSet.has(x)?"A + B":aSet.has(x)?"A":"B"}</td><td>${fx(a,4)}</td><td>${fx(b,4)}</td><td class="${cls(b-a)}">${sgn((b-a)*100,2)}</td></tr>`}
-  $("pathTbl").innerHTML=h+"</tbody></table>";
+  const key=JSON.stringify([S.asof,S.confirmed,S.scen,S.cases,S.mkt,S.sofr,S.effr,S.holidays,todaySerReal()]);
+  if(key!==inpKey){inpKey=key;INP=inputs();cache.clear()}
+  if(!S.scen[S.selB])S.selB=S.order[0];if(!S.scen[S.selA])S.selA=S.order[0];
+  $("asof").value=S.asof||U.iso(todaySer());$("thresh").value=S.thresh;
+  for(const id of ["selA","selB"])$(id).innerHTML=S.order.map(n=>`<option ${S[id]===n?"selected":""}>${esc(n)}</option>`).join("");
+  $("tabs").innerHTML=TABS.map(([k,l])=>`<button role="tab" data-tab="${k}" aria-selected="${S.tab===k}">${l}</button>`).join("");
+  const RA=result(S.selA),RB=result(S.selB);lastCopy=null;
+  ({strat:viewStrat,out:viewOut,matrix:viewMatrix,meet:viewMeet,mkt:viewMkt,set:viewSet,about:viewAbout})[S.tab](RA,RB);
   save();
 }
-let raf=0;const schedule=()=>{cancelAnimationFrame(raf);raf=requestAnimationFrame(render)};
+const sameAB=()=>S.selA===S.selB?` <span class="badge">A and B are the same calendar</span>`:"";
+const copyRow=label=>`<div class="row" style="margin-top:8px"><button id="copyView">${label}</button><span class="msg" id="copyMsg"></span></div>`;
+
+function kpis(RB,rows){
+  const th=+S.thresh,flags=rows.filter(r=>!bad(r.edge)&&Math.abs(r.edge)>=th).length;
+  const big=rows.filter(r=>!bad(r.d)&&r.f.kind!=="mn").sort((a,b)=>Math.abs(b.d)-Math.abs(a.d))[0];
+  const m0=RB.rows[0];
+  return `<div class="kpis">
+    <div class="kpi"><b>${m0?U.iso(m0.date)+" · "+sg(m0.cut,2):"—"}</b><span>Next meeting · implied bp (B)</span></div>
+    <div class="kpi"><b>${big?sg(big.d,2):"—"}</b><span>Largest A→B change${big?" · "+esc(big.label):""}</span></div>
+    <div class="kpi"><b>${flags}</b><span>Structures with edge ≥ ${th}bp (B)</span></div>
+    <div class="kpi"><b>${fx(RB.P8,2)}</b><span>Total hikes for auto Case 1</span></div>
+  </div>`;
+}
+function stratRows(f,RA,RB){
+  return famItems(f,RB).map(it=>{
+    const live=value(f,it,RB,"live"),settle=hasSettle(f)?value(f,it,RB,"settle"):NaN,a=value(f,it,RA,"fair"),b=value(f,it,RB,"fair");
+    return{f,it,label:it.label,live,settle,a,b,d:b-a,edge:b-live,c1:value(f,it,RB,"c1"),c2:value(f,it,RB,"c2")};
+  });
+}
+function stratTable(rows,showFam){
+  const th=+S.thresh,anyS=rows.some(r=>!bad(r.settle)),mn=rows.some(r=>r.f.kind==="mn");
+  let h=`<div class="tbl-wrap"><table><thead><tr><th>Structure</th><th>Live</th>${anyS?"<th>Settle</th>":""}<th class="a">Fair A</th><th class="b">Fair B</th><th>A→B</th><th>Edge B</th><th>Hike 1 (B)</th><th>Hike 2 (B)</th>${mn?"<th>VWAP PnL</th><th>Edge PnL</th>":""}<th>Signal</th></tr></thead><tbody>`;
+  for(const r of rows){const flag=!bad(r.edge)&&Math.abs(r.edge)>=th;
+    const sub=showFam?r.f.name:r.it.ratios?`ratios ${r.it.ratios.join(" / ")} · meeting ${U.iso(r.it.meeting)}`:"";
+    const isMn=r.f.kind==="mn";
+    h+=`<tr class="${flag?"flag":""}"><td class="name">${esc(r.label)}${sub?`<span class="sub">${esc(sub)}</span>`:""}</td><td>${fx(r.live,3)}</td>${anyS?`<td>${fx(r.settle,3)}</td>`:""}<td class="a">${fx(r.a,3)}</td><td class="b">${fx(r.b,3)}</td><td class="${cl(r.d)}">${sg(r.d,3)}</td><td class="${cl(r.edge)}">${sg(r.edge,3)}</td><td>${fx(r.c1,3)}</td><td>${fx(r.c2,3)}</td>${mn?`<td>${isMn?fx(r.live*S.vwapMult,0):""}</td><td class="${isMn?cl(r.edge):""}">${isMn?sg(r.edge*S.pnlMult,0):""}</td>`:""}<td>${flag?(r.edge>0?'<span class="pill buy">BUY</span>':'<span class="pill sell">SELL</span>'):""}</td></tr>`}
+  return h+"</tbody></table></div>";
+}
+function viewStrat(RA,RB){
+  const all=FAMILIES.flatMap(f=>stratRows(f,RA,RB));
+  const fam=S.fam==="all"?null:(FAMILIES.find(f=>f.k===S.fam)||FAMILIES[0]);
+  const rows=fam?stratRows(fam,RA,RB):all.filter(r=>!bad(r.d)&&r.f.kind!=="mn").sort((a,b)=>Math.abs(b.d)-Math.abs(a.d)).slice(0,40);
+  $("view").innerHTML=kpis(RB,all)+`<section class="card">
+    <div class="chips">${FAMILIES.map(f=>`<button data-fam="${f.k}" aria-pressed="${S.fam===f.k}">${f.name}</button>`).join("")}<button data-fam="all" aria-pressed="${S.fam==="all"}">Biggest A→B changes</button></div>
+    <p class="hint">Values in bp of price, as on the Graphs sheet. <b>Fair A/B</b> = model fair under calendar A/B. <b>Edge B</b> = Fair B − Live; positive means the structure is cheap. <b>Hike 1/2</b> = Case 1/2 under calendar B.${fam?"":" Meeting neutrals are left out of this ranking because their day-count ratios scale them up; see their own tab."}${fam&&fam.kind==="mn"?" Structures are built from calendar B's meetings, so Fair A shows the same B-neutral structure priced on calendar A.":""}${sameAB()}</p>
+    ${stratTable(rows,!fam)}${copyRow("Copy table")}</section>`;
+  lastCopy=()=>[["Structure","Live","Settle","FairA","FairB","AtoB","EdgeB","Hike1","Hike2"]].concat(rows.map(r=>cellsOut([r.label,r.live,r.settle,r.a,r.b,r.d,r.edge,r.c1,r.c2])));
+}
+function viewOut(RA,RB){
+  const prods=[["zq","ZQ","ZQ_Out"],["sr1","SR1","SR1_Out"],["sr3","SR3","SR3_Out"]];
+  const pc=U.parseLab(U.lab(INP.today)),out=[];
+  let h=`<p class="hint">Outright fair prices. ZQ = average of last EFFR plus cumulative implied moves. SR1 = monthly average of the SOFR path. SR3 = SOFR path compounded over business days, 3rd Wednesday to 3rd Wednesday. Spreads to live are in bp.${sameAB()}</p><div class="cols">`;
+  for(const[p,name,t] of prods){
+    const have=new Set(INP.mkt[t].map(r=>r.label));
+    const labels=RB.months.filter(l=>{const pl=U.parseLab(l);return have.has(l)&&pl.y*12+pl.m>=pc.y*12+pc.m-(p==="sr3"?3:0)});
+    h+=`<section class="card"><h2>${name}</h2><div class="tbl-wrap"><table><thead><tr><th>Contract</th><th>Live</th><th class="a">Fair A</th><th class="b">Fair B</th><th>A→B</th><th>Edge</th><th>Case 1</th><th>Case 2</th></tr></thead><tbody>`;
+    for(const l of labels){const live=RB.src[p+"Live"](l),a=RA.src[p+"Fair"](l),b=RB.src[p+"Fair"](l),c1=RB.src[p+"Case"](0)(l),c2=RB.src[p+"Case"](1)(l);
+      h+=`<tr><td class="name">${name} ${l}</td><td>${fx(live,4)}</td><td class="a">${fx(a,4)}</td><td class="b">${fx(b,4)}</td><td class="${cl(b-a)}">${sg((b-a)*100,2)}</td><td class="${cl(b-live)}">${sg((b-live)*100,2)}</td><td>${fx(c1,4)}</td><td>${fx(c2,4)}</td></tr>`;
+      out.push([name+" "+l,live,a,b,c1,c2])}
+    h+="</tbody></table></div></section>";
+  }
+  $("view").innerHTML=h+"</div>"+copyRow("Copy all outrights");
+  lastCopy=()=>[["Contract","Live","FairA","FairB","Case1","Case2"]].concat(out.map(cellsOut));
+}
+function viewMatrix(RA,RB){
+  const fam=FAMILIES.find(f=>f.k===S.matrixFam)||FAMILIES[0];
+  const t=performance.now();const Rs=S.order.map(n=>[n,result(n)]);const ms=performance.now()-t;
+  const items=famItems(fam,RB),out=[];
+  let h=`<section class="card"><div class="chips">${FAMILIES.map(f=>`<button data-mfam="${f.k}" aria-pressed="${fam.k===f.k}">${f.name}</button>`).join("")}</div>
+  <p class="hint">Fair value of each structure under every calendar scenario, so you know before the announcement what each outcome is worth. Colour shows the sign of fair − live.${fam.kind==="mn"?" Meeting-neutral structures are taken from calendar B.":""}</p>
+  <div class="tbl-wrap"><table><thead><tr><th>Structure</th><th>Live</th>${Rs.map(([n])=>`<th class="${n===S.selB?"b":n===S.selA?"a":""}">${esc(n)}</th>`).join("")}<th>Range</th></tr></thead><tbody>`;
+  for(const it of items){const live=value(fam,it,RB,"live");const vals=Rs.map(([,R])=>value(fam,it,R,"fair"));const ok=vals.filter(v=>!bad(v));
+    h+=`<tr><td class="name">${esc(it.label)}</td><td>${fx(live,3)}</td>${vals.map((v,i)=>`<td class="${Rs[i][0]===S.selB?"b ":Rs[i][0]===S.selA?"a ":""}${cl(v-live)}">${fx(v,3)}</td>`).join("")}<td>${ok.length?fx(Math.max(...ok)-Math.min(...ok),3):'<span class="err">—</span>'}</td></tr>`;
+    out.push([it.label,live,...vals])}
+  $("view").innerHTML=h+`</tbody></table></div>${copyRow("Copy matrix")}<p class="msg">${S.order.length} calendars priced in ${Math.max(1,Math.round(ms))} ms</p></section>`;
+  lastCopy=()=>[["Structure","Live",...S.order]].concat(out.map(cellsOut));
+}
+function cutsTable(R,title,cls){
+  let h=`<h2>${title}</h2><div class="tbl-wrap"><table><thead><tr><th>#</th><th>Meeting</th><th>ZQ spread</th><th>Spread VWAP</th><th class="${cls}">Implied bp</th><th>Cumulative</th></tr></thead><tbody>`;
+  let c=0;R.rows.forEach((r,i)=>{c+=bad(r.cut)?0:r.cut;h+=`<tr><td>${i+1}</td><td class="name">${dname(r.date)}</td><td>${esc(r.con.replace(" Calendar",""))}</td><td>${fx(r.E,3)}</td><td class="${cls} ${cl(r.cut)}">${sg(r.cut,3)}</td><td>${sg(c,2)}</td></tr>`});
+  return h+"</tbody></table></div>";
+}
+function viewMeet(RA,RB){
+  const maxRows=Math.max(8,...S.order.map(n=>(S.scen[n]||[]).length+1));
+  let grid=`<div class="tbl-wrap"><table class="scen"><thead><tr><th>#</th>${S.order.map(n=>`<th class="${n===S.selB?"sel":""}">${esc(n)}<button data-delscen="${esc(n)}" aria-label="Delete ${esc(n)}">×</button></th>`).join("")}</tr></thead><tbody>`;
+  for(let i=0;i<maxRows;i++)grid+=`<tr><td>${i+1}</td>${S.order.map(n=>`<td><input type="text" data-scen="${esc(n)}" data-i="${i}" value="${esc((S.scen[n]||[])[i]||"")}" aria-label="${esc(n)} meeting ${i+1}"></td>`).join("")}</tr>`;
+  grid+="</tbody></table></div>";
+  const used=(isExtra,r,i)=>{const cr=RB.caseRows.find(c=>isExtra?c.date===U.fromText(r.date||""):c.date===RB.MC[i]);return cr?`${fx(+cr.c[0],3)} / ${fx(+cr.c[1],3)}`:""};
+  const caseRow=(r,i,isExtra)=>`<tr><td class="name">${isExtra?`<input type="date" data-cx="${i}" data-k="date" value="${esc(r.date||"")}" aria-label="Extra case date">`:(RB.MC[i]?dname(RB.MC[i]):"—")}</td>
+    <td><input type="text" data-c${isExtra?"x":"r"}="${i}" data-k="c1" value="${esc(r.c1??"")}" aria-label="Hike 1"></td><td><input type="text" data-c${isExtra?"x":"r"}="${i}" data-k="c2" value="${esc(r.c2??"")}" aria-label="Hike 2"></td><td>${used(isExtra,r,i)}</td></tr>`;
+  $("view").innerHTML=`<div class="cols">
+   <section class="card">${cutsTable(RA,"Calendar A · "+esc(S.selA),"a")}</section>
+   <section class="card">${cutsTable(RB,"Calendar B · "+esc(S.selB),"b")}</section></div>
+   <section class="card" style="margin-top:14px"><h2>Calendar scenarios <span class="tag">Graphs AH38:AO44</span></h2>
+   <p class="hint">Each column is one possible calendar. The page takes the confirmed dates before a scenario's first date, then the scenario's dates, then extends with the rolling average of the last five gaps (Graphs B49:B66). Edit a cell and press Tab or Enter to reprice.</p>
+   ${grid}<div class="row" style="margin-top:8px"><input type="text" id="newScen" placeholder="Scenario name" aria-label="New scenario name"><button id="addScen">Add scenario</button></div></section>
+   <div class="cols" style="margin-top:14px">
+   <section class="card"><h2>Confirmed meeting dates <span class="tag">Raw Data AU4:AU27</span></h2><textarea id="confirmed" rows="10" spellcheck="false">${esc(S.confirmed)}</textarea></section>
+   <section class="card"><h2>Case 1 / Case 2 hikes <span class="tag">Graphs B32:D40</span></h2>
+   <p class="hint">Rows follow calendar B's meeting order. Type bp, or <code>auto</code> to split Total Hikes (${fx(RB.P8,3)}bp) with weights n…1 like C34:C39. Extra rows use fixed dates.</p>
+   <div class="tbl-wrap"><table class="cases"><thead><tr><th>Meeting (B)</th><th>Hike 1</th><th>Hike 2</th><th>Used</th></tr></thead><tbody>
+   ${S.cases.rows.map((r,i)=>caseRow(r,i,false)).join("")}${S.cases.extra.map((r,i)=>caseRow(r,i,true)).join("")}</tbody></table></div>
+   <div class="row" style="margin-top:8px"><label class="f">Total-hikes cutoff<input type="date" id="cutoff" value="${esc(S.cases.cutoff||"")}"></label><button id="addCase">Add meeting row</button><button id="addExtra">Add extra date</button></div></section></div>`;
+}
+function viewMkt(){
+  const lastOf=a=>a.length?U.iso(Math.max(...a.map(r=>r[0]))):"—";
+  $("view").innerHTML=`<p class="hint">Paste each table straight from your feed or the Raw Data sheet, then click outside the box. A header row with <code>bidPrice</code>, <code>askPrice</code>, quantities and <code>VWAP</code> is understood; without a header the columns are label, VWAP, settle. When VWAP is blank, the size-weighted mid is computed from bid, ask and quantities, as in the workbook.</p>
+  <div class="cols">${MKT_TABLES.map(([k,n,d])=>`<section class="card"><h2>${n} <span class="tag">${k}</span></h2><p class="hint">${esc(d)}</p><textarea data-mkt="${k}" rows="8" spellcheck="false">${esc(S.mkt[k]||"")}</textarea><div class="msg">${INP.mkt[k].length} rows read</div></section>`).join("")}
+  <section class="card"><h2>SOFR fixings <span class="tag">rate table</span></h2><textarea id="sofr" rows="8" spellcheck="false">${esc(S.sofr)}</textarea><div class="msg">${INP.sofr.length} fixings · last ${lastOf(INP.sofr)}</div></section>
+  <section class="card"><h2>EFFR fixings <span class="tag">rate__2 table</span></h2><textarea id="effr" rows="8" spellcheck="false">${esc(S.effr)}</textarea><div class="msg">${INP.effr.length} fixings · last ${lastOf(INP.effr)}</div></section>
+  <section class="card"><h2>Holidays <span class="tag">SR3-SR1 BF column</span></h2><textarea id="holidays" rows="8" spellcheck="false">${esc(S.holidays)}</textarea><div class="msg">${INP.holidays.length} dates</div></section></div>`;
+}
+function viewSet(){
+  $("view").innerHTML=`<div class="cols">${FAMILIES.filter(f=>f.list).map(f=>`<section class="card"><h2>${f.name}</h2><p class="hint">${f.kind==="binom"?"Months joined by -. Weights follow the binomial row: 2 legs 1/−1, 3 legs 1/−2/1, 4 legs 1/−3/3/−1.":f.kind==="flyX"?"2 × SR3(leg 1) − leg 2 − leg 3.":"SR3(1) − SR3(2) − ZQ(3) + ZQ(4)."}</p><textarea data-list="${f.k}" rows="8" spellcheck="false">${esc(S.lists[f.k]||"")}</textarea></section>`).join("")}
+  <section class="card"><h2>PnL multipliers</h2><div class="row"><label class="f">Edge PnL $/bp<input type="number" id="pnlMult" step="0.01" value="${S.pnlMult}"></label><label class="f">VWAP PnL $/bp<input type="number" id="vwapMult" step="0.01" value="${S.vwapMult}"></label></div>
+  <p class="hint">Workbook constants: 41.67 (manual PnL) and 20.48 × 2 (VWAP PnL), used for meeting neutrals.</p>
+  <div class="row"><button id="resetAll">Reset everything to the workbook data</button></div></section></div>`;
+}
+function viewAbout(){
+  $("view").innerHTML=`<section class="card method"><h2>How the page prices</h2>
+  <p><b>Implied meeting moves.</b> For each of the next 12 meetings, take the ZQ calendar spread around it: prior month → meeting month if the meeting is before the 15th, else meeting month → next month. Move = spread VWAP ÷ (W₁ − W₂), where W is minus the fraction of each month after the meeting day. Computed bottom-up with the workbook's adjacent-meeting correction.</p>
+  <p><b>SOFR path.</b> Actual fixings for past days. For the rest of the current month, an estimate that makes the month average 100 − ZQ − SR1ZQ/100. For later months, the market average 100 − (ZQ + SR1ZQ/100). Months with a meeting are split around the day after the meeting so the month average stays the same.</p>
+  <p><b>Fair values.</b> SR3 = path compounded over business days from the 3rd Wednesday to the day before the 3rd Wednesday three months later (Act/360). SR1 = monthly average of the path. ZQ = 100 − (last EFFR + cumulative implied moves), averaged over the month. Case 1/2 replace the implied moves with your hike inputs and the SR1ZQ basis.</p>
+  <p><b>Checked against the workbook.</b> With the workbook's own data, all 524 cached values compared (implied cuts, the 36 rows of SR3/SR1/ZQ fair and both cases, the Graphs structures and Total Hikes) agree to 1e-8. Workbook quirks are kept on purpose so the numbers match: the intra-month split is also applied to actual fixings, the current-month block uses the last EFFR date, the 2027-03-31 Case row is kept, and only the first meeting of a month enters the SOFR path.</p>
+  <p><b>Not carried over.</b> The manual-price meeting-neutral blocks (Graphs D41:K46 and D62:I65), whose ratio rows and units are inconsistent in the workbook. Meeting neutrals here are rebuilt from calendar B with ratios d / −D / D−d and gain a Fair column.</p></section>`;
+}
 
 /* ---------- events ---------- */
-for(const k of ["asof","base","spread","meTurn","qeTurn","yeTurn","lag","thresh"])$(k).addEventListener("input",e=>{const v=e.target.value;if(k==="asof"){if(!fromIso(v))return;S.asof=v}else{if(v===""||isNaN(+v))return;S[k]=+v}schedule()});
-document.addEventListener("input",e=>{const t=e.target;if(t.dataset&&t.dataset.w){const L=t.dataset.w==="A"?S.A:S.B;const r=L[+t.dataset.i];if(!r)return;if(t.dataset.k==="d")r.d=t.value;else{if(t.readOnly)return;r.m=t.value===""?0:+t.value}schedule()}});
-document.addEventListener("focusout",e=>{if(e.target.closest&&e.target.closest(".sched"))setTimeout(()=>{if(!document.activeElement||!document.activeElement.closest(".sched"))render()},0)});
-document.addEventListener("click",e=>{const t=e.target.closest("button");if(!t)return;
-  if(t.dataset.del){(t.dataset.del==="A"?S.A:S.B).splice(+t.dataset.i,1);render();return}
-  if(t.dataset.tab){S.tab=t.dataset.tab;render();return}
-  if(t.dataset.m){if(t.dataset.m==="manual"&&S.bMode!=="manual"){const mv=bMoves(S);S.B.forEach((r,i)=>r.m=mv[i])}S.bMode=t.dataset.m;render();return}
-  if(t.dataset.t){S.types[t.dataset.t]=!S.types[t.dataset.t];render();return}
-});
-function applyPaste(which){
-  const ta=$(which==="A"?"pasteA":"pasteB"),msg=$(which==="A"?"pasteMsgA":"pasteMsg");
-  const{dates,bad}=parseDates(ta.value,ymd(fromIso(S.asof)).y);
-  if(!dates.length){msg.textContent="No dates found. Use formats like 2027-01-27 or Jan 26-27, 2027.";return}
-  const old=which==="A"?S.A:S.B;
-  const list=dates.map((d,i)=>{const prev=old.find(r=>r.d===iso(d));return{d:iso(d),m:prev?prev.m:(which==="A"?0:(old[i]?old[i].m:0))}});
-  if(which==="A")S.A=list;else S.B=list;
-  msg.textContent=`${dates.length} dates loaded`+(bad.length?`. Skipped: ${bad.join(", ")}`:"");
+let raf=0;const schedule=()=>{cancelAnimationFrame(raf);raf=requestAnimationFrame(render)};
+$("asof").addEventListener("change",e=>{S.asof=e.target.value===U.iso(todaySerReal())?"":e.target.value;schedule()});
+$("thresh").addEventListener("input",e=>{if(e.target.value!==""){S.thresh=+e.target.value;schedule()}});
+$("selA").addEventListener("change",e=>{S.selA=e.target.value;schedule()});
+$("selB").addEventListener("change",e=>{S.selB=e.target.value;schedule()});
+function applyQuick(){
+  const m=$("quickMsg"),{dates,bad}=parseDateList($("quickDates").value,U.parts(todaySer()).y);
+  if(dates.length<2){m.className="msg bad";m.textContent="Paste at least two dates, e.g. 2027-01-27 or Jan 26-27, 2027.";return}
+  if(!S.scen["Announced"])S.order.push("Announced");
+  S.scen["Announced"]=dates.map(U.iso);
+  if(S.selA==="Announced")S.selA=S.order[0];S.selB="Announced";
+  m.className="msg";m.textContent=`${dates.length} dates priced as calendar B “Announced”`+(bad.length?`. Skipped: ${bad.join(", ")}`:"");
   render();
 }
-$("applyB").onclick=()=>applyPaste("B");$("applyA").onclick=()=>applyPaste("A");
-$("pasteB").addEventListener("keydown",e=>{if(e.key==="Enter"&&(e.ctrlKey||e.metaKey))applyPaste("B")});
-$("pasteB").addEventListener("paste",()=>setTimeout(()=>applyPaste("B"),0));
-$("copyAB").onclick=()=>{S.B=S.A.map(r=>({d:r.d,m:r.m}));$("pasteMsg").textContent="Schedule B now matches A";render()};
-$("addA").onclick=()=>{S.A.push({d:"",m:0});render()};$("addB").onclick=()=>{S.B.push({d:"",m:0});render()};
-$("market").addEventListener("input",e=>{S.market=e.target.value;schedule()});
-$("custom").addEventListener("input",e=>{S.custom=e.target.value;schedule()});
-$("dismissBanner").onclick=()=>{S.example=false;render()};
-$("calib").onclick=()=>{const src=$("calibSrc").value,{used,skipped}=calibrate(src);
-  $("calibMsg").textContent=used.length?`Implied ${used.length} meeting moves from ${src} (${[...new Set(used)].join(", ")})`+(skipped.length?`. No usable price for: ${skipped.join(", ")}`:""):`No ${src} prices matched the future meetings. Paste ${src} quotes first.`;render()};
-function fillSample(){const R=last.C?last:compute();const t=0.0025;$("market").value=S.market=R.C.map(c=>`${c.sym}\t${(Math.round(R.fa[c.sym]/t)*t).toFixed(4)}`).join("\n")}
-$("sampleMkt").onclick=()=>{fillSample();render()};
-$("copyTbl").onclick=()=>{const v=last.view||[];const txt=["Strategy\tFairA\tFairB\tDelta_bp\tMarket\tEdge_bp"].concat(v.map(r=>[r.name,fx(r.A,4),fx(r.B,4),fx(r.d,2),fx(r.M,4),fx(r.edge,2)].join("\t"))).join("\n");
-  const ok=()=>$("copyMsg").textContent=`Copied ${v.length} rows`;
-  try{navigator.clipboard.writeText(txt).then(ok,()=>{$("copyMsg").textContent="Clipboard blocked by the browser"})}catch(e){$("copyMsg").textContent="Clipboard blocked by the browser"}};
-
-$("market").value=S.market;$("custom").value=S.custom;$("calibSrc").value="ZQ";
-if(!S.seeded){render();fillSample();S.seeded=true}
+$("quickApply").onclick=applyQuick;
+$("quickDates").addEventListener("paste",()=>setTimeout(applyQuick,0));
+$("quickDates").addEventListener("keydown",e=>{if(e.key==="Enter"&&(e.ctrlKey||e.metaKey)){e.preventDefault();applyQuick()}});
+document.addEventListener("click",e=>{const t=e.target.closest("button");if(!t)return;
+  if(t.dataset.tab){S.tab=t.dataset.tab;render();return}
+  if(t.dataset.fam){S.fam=t.dataset.fam;render();return}
+  if(t.dataset.mfam){S.matrixFam=t.dataset.mfam;render();return}
+  if(t.dataset.delscen){const n=t.dataset.delscen;if(S.order.length<=1)return;delete S.scen[n];S.order=S.order.filter(x=>x!==n);render();return}
+  if(t.id==="addScen"){const n=($("newScen").value||"").trim()||"Scenario "+(S.order.length+1);if(!S.scen[n]){S.scen[n]=[];S.order.push(n)}render();return}
+  if(t.id==="addCase"){S.cases.rows.push({c1:"",c2:""});render();return}
+  if(t.id==="addExtra"){S.cases.extra.push({date:"",c1:"",c2:""});render();return}
+  if(t.id==="resetAll"){if(t.dataset.armed){S=defaults();try{localStorage.removeItem(KEY)}catch(err){}render()}else{t.dataset.armed="1";t.textContent="Click again to confirm the reset"}return}
+  if(t.id==="copyView"&&lastCopy){const txt=lastCopy().map(r=>r.join("\t")).join("\n"),m=$("copyMsg");
+    try{navigator.clipboard.writeText(txt).then(()=>{m.textContent="Copied. Paste into Excel."},()=>{m.textContent="The browser blocked the clipboard."})}catch(err){m.textContent="The browser blocked the clipboard."}}
+});
+// Edits update state as you type; the page reprices when the field is committed (blur, Tab or Enter).
+document.addEventListener("input",e=>{const t=e.target,d=t.dataset;
+  if(d.scen!==undefined){const a=S.scen[d.scen]=S.scen[d.scen]||[];a[+d.i]=t.value.trim();while(a.length&&!a[a.length-1])a.pop()}
+  else if(d.mkt)S.mkt[d.mkt]=t.value;
+  else if(d.list)S.lists[d.list]=t.value;
+  else if(d.cr!==undefined)S.cases.rows[+d.cr][d.k]=t.value.trim();
+  else if(d.cx!==undefined)S.cases.extra[+d.cx][d.k]=t.value.trim();
+  else if(["confirmed","sofr","effr","holidays"].includes(t.id))S[t.id]=t.value;
+  else if(t.id==="cutoff")S.cases.cutoff=t.value;
+  else if(t.id==="pnlMult"||t.id==="vwapMult")S[t.id]=+t.value||0;
+  else return;
+  save();
+});
+document.addEventListener("change",e=>{if(e.target.closest("#view"))schedule()});
+document.addEventListener("keydown",e=>{if(e.key==="Enter"&&e.target.matches("#view input[type=text]"))e.target.blur()});
 render();
 </script>
 </body>
